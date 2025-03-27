@@ -7,7 +7,6 @@ import (
 	"net/http"
 )
 
-// Contains an example how to use the package
 func main() {
 
 	ctx := context.Background()
@@ -20,7 +19,7 @@ func main() {
 	validator := NewJWTValidator(ctx, jwtOpts)
 
 	// Start gofunc for synchronizing keys
-	validator.Start(ctx)
+	validator.StartSync(ctx)
 
 	// Set up a server
 	mux := http.NewServeMux()

@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func (m *JWTValidator) Start(ctx context.Context) {
+func (m *JWTValidator) StartSync(ctx context.Context) {
 	go func() {
 
 		ticker := time.NewTicker(24 * time.Hour)
