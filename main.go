@@ -36,7 +36,7 @@ func main() {
 	// Apply middleware to handler.
 	mux.Handle("/ping", jwtMiddleware(http.HandlerFunc(pingHandler)))
 
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(":8080", mux); err != nil {
 		slog.Error("server failed", "error", err)
 	}
 }

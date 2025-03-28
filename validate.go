@@ -150,10 +150,7 @@ func (m *JWTValidator) createKeyFunc(ctx context.Context) func(*jwt.Token) (inte
 }
 
 func createDiscoveryURL(baseURL string) string {
-	if strings.HasSuffix(baseURL, "/") {
-		baseURL = strings.TrimSuffix(baseURL, "/")
-	}
-
+	baseURL = strings.TrimSuffix(baseURL, "/")
 	disoveryPath := "/discovery/v2.0/keys"
 
 	return baseURL + disoveryPath
