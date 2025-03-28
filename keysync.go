@@ -77,7 +77,7 @@ func fetchRemoteJWKS(ctx context.Context, jwksURL string) (JWKS, error) {
 func (m *JWTValidator) synchronizeKeys(ctx context.Context) error {
 	slog.DebugContext(ctx, "Refreshing JWKS keys")
 
-	newJWKS, err := fetchRemoteJWKS(ctx, m.jwksURL)
+	newJWKS, err := fetchRemoteJWKS(ctx, m.wellKnowURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch remote keys: %w", err)
 	}

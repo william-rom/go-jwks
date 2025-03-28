@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -36,23 +37,23 @@ type JSONWebKeys struct {
 }
 
 type JWTOpts struct {
-	JwksURL   string
+	baseURL   string
 	Audiences []string
 }
 
 type JWTValidator struct {
-	jwksURL   string
-	audiences []string
-	jwks      *JWKS
-	mutex     *sync.RWMutex
+	wellKnowURL string
+	audiences   []string
+	jwks        *JWKS
+	mutex       *sync.RWMutex
 }
 
-func NewJWTValidator(ctx context.Context, opts JWTOpts) *JWTValidator {
+func NewJWTValidator(opts JWTOpts) *JWTValidator {
 	return &JWTValidator{
-		jwksURL:   opts.JwksURL,
-		audiences: opts.Audiences,
-		mutex:     &sync.RWMutex{},
-		jwks:      nil,
+		wellKnowURL: createDiscoveryURL(opts.baseURL),
+		audiences:   opts.Audiences,
+		mutex:       &sync.RWMutex{},
+		jwks:        nil,
 	}
 }
 
@@ -89,7 +90,7 @@ func JWTMiddleware(validator *JWTValidator) func(http.Handler) http.Handler {
 
 			if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 				if aud, ok := claims["aud"].(string); ok {
-					if !Contains(validator.audiences, aud) {
+					if !slices.Contains(validator.audiences, aud) {
 						http.Error(w, "invalid token", http.StatusUnauthorized)
 						return
 					}
@@ -156,4 +157,14 @@ func (m *JWTValidator) createKeyFunc(ctx context.Context) func(*jwt.Token) (inte
 		}
 		return nil, fmt.Errorf("signing key not found")
 	}
+}
+
+func createDiscoveryURL(baseURL string) string {
+	if strings.HasSuffix(baseURL, "/") {
+		baseURL = strings.TrimSuffix(baseURL, "/")
+	}
+
+	disoveryPath := "/discovery/v2.0/keys"
+
+	return baseURL + disoveryPath
 }
