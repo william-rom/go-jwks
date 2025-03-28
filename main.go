@@ -8,26 +8,32 @@ import (
 )
 
 func main() {
-
 	ctx := context.Background()
-	jwtOpts := JWTOpts{
+
+	// Configure jwks fetching opts.
+	jwksOpts := JWKSFetcherOpts{
 		baseURL: "https://login.microsoftonline.com/9b5ff18e-53c0-45a2-8bc2-9c0c8f60b2c6",
-		Audiences: []string{
-			"api://8cfd806f-3d93-4c3e-87a1-db7002b142a1",
-		},
 	}
-	validator := NewJWTValidator(jwtOpts)
+	// Set up new jwks fetcher.
+	fetcher := NewJWKSFetcher(jwksOpts)
 
-	// Start gofunc for synchronizing keys
-	validator.StartSync(ctx)
+	// Start gofunc for synchronizing keys.
+	fetcher.Start(ctx)
 
-	// Set up a server
-	mux := http.NewServeMux()
+	// Set audience used for validation.
+	audiences := []string{
+		"api://8cfd806f-3d93-4c3e-87a1-db7002b142a1",
+	}
 
-	// Create middleware
+	// Create a JWT validator instance.
+	validator := NewJWTValidator(fetcher, audiences)
+
+	// Create the http.Handler middleware.
 	jwtMiddleware := JWTMiddleware(validator)
 
-	// Apply middleware to handler
+	mux := http.NewServeMux()
+
+	// Apply middleware to handler.
 	mux.Handle("/ping", jwtMiddleware(http.HandlerFunc(pingHandler)))
 
 	if err := http.ListenAndServe(":8080", nil); err != nil {

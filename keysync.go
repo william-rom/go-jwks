@@ -6,11 +6,30 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 )
 
+type JWKSFetcher struct {
+	wellKnowURL string
+	jwks        *JWKS
+	mutex       *sync.RWMutex
+}
+
+type JWKSFetcherOpts struct {
+	baseURL string
+}
+
+func NewJWKSFetcher(opts JWKSFetcherOpts) *JWKSFetcher {
+	return &JWKSFetcher{
+		wellKnowURL: createDiscoveryURL(opts.baseURL),
+		mutex:       &sync.RWMutex{},
+		jwks:        nil,
+	}
+}
+
 // Start synchronization of JWKS into in-memory store.
-func (m *JWTValidator) StartSync(ctx context.Context) {
+func (f *JWKSFetcher) Start(ctx context.Context) {
 	go func() {
 
 		ticker := time.NewTicker(24 * time.Hour)
@@ -18,7 +37,7 @@ func (m *JWTValidator) StartSync(ctx context.Context) {
 
 		for {
 			slog.Info("fetching new keys")
-			if err := m.synchronizeKeys(ctx); err != nil {
+			if err := f.synchronizeKeys(ctx); err != nil {
 				slog.Error("failed to fetch remote keys", "error", err)
 			}
 
@@ -74,17 +93,17 @@ func fetchRemoteJWKS(ctx context.Context, jwksURL string) (JWKS, error) {
 	return jwks, nil
 }
 
-func (m *JWTValidator) synchronizeKeys(ctx context.Context) error {
+func (f *JWKSFetcher) synchronizeKeys(ctx context.Context) error {
 	slog.DebugContext(ctx, "Refreshing JWKS keys")
 
-	newJWKS, err := fetchRemoteJWKS(ctx, m.wellKnowURL)
+	newJWKS, err := fetchRemoteJWKS(ctx, f.wellKnowURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch remote keys: %w", err)
 	}
 
-	m.mutex.Lock()
-	m.jwks = &newJWKS
-	m.mutex.Unlock()
+	f.mutex.Lock()
+	f.jwks = &newJWKS
+	f.mutex.Unlock()
 
 	slog.DebugContext(ctx, "JWKS keys refreshed successfully")
 

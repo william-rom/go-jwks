@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	jwt "github.com/golang-jwt/jwt/v5"
@@ -36,24 +35,15 @@ type JSONWebKeys struct {
 	X5c []string `json:"x5c"`
 }
 
-type JWTOpts struct {
-	baseURL   string
-	Audiences []string
-}
-
 type JWTValidator struct {
-	wellKnowURL string
+	JWKSFetcher *JWKSFetcher
 	audiences   []string
-	jwks        *JWKS
-	mutex       *sync.RWMutex
 }
 
-func NewJWTValidator(opts JWTOpts) *JWTValidator {
+func NewJWTValidator(fetcher *JWKSFetcher, audiences []string) *JWTValidator {
 	return &JWTValidator{
-		wellKnowURL: createDiscoveryURL(opts.baseURL),
-		audiences:   opts.Audiences,
-		mutex:       &sync.RWMutex{},
-		jwks:        nil,
+		JWKSFetcher: fetcher,
+		audiences:   audiences,
 	}
 }
 
@@ -134,12 +124,12 @@ func (m *JWTValidator) createKeyFunc(ctx context.Context) func(*jwt.Token) (inte
 		}
 
 		// Lock and read from jwks store.
-		m.mutex.RLock()
-		defer m.mutex.RUnlock()
+		m.JWKSFetcher.mutex.RLock()
+		defer m.JWKSFetcher.mutex.RUnlock()
 
 		// Check if any of the public keys IDs match the auth header kid.
 		// If match, parse and return RSA public key.
-		for _, key := range m.jwks.Keys {
+		for _, key := range m.JWKSFetcher.jwks.Keys {
 			if key.Kid == kid {
 				var parseErrs []error
 				for _, x5c := range key.X5c {
