@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"sync"
 	"time"
 )
 
+// Start synchronization of JWKS into in-memory store.
 func (m *JWTValidator) StartSync(ctx context.Context) {
 	go func() {
 
@@ -31,15 +31,6 @@ func (m *JWTValidator) StartSync(ctx context.Context) {
 			}
 		}
 	}()
-}
-
-func NewJWTValidator(ctx context.Context, opts JWTOpts) *JWTValidator {
-	return &JWTValidator{
-		jwksURL:   opts.JwksURL,
-		audiences: opts.Audiences,
-		mutex:     &sync.RWMutex{},
-		jwks:      nil,
-	}
 }
 
 func fetchRemoteJWKS(ctx context.Context, jwksURL string) (JWKS, error) {

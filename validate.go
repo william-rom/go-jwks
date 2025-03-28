@@ -47,7 +47,15 @@ type JWTValidator struct {
 	mutex     *sync.RWMutex
 }
 
-// main middleware function
+func NewJWTValidator(ctx context.Context, opts JWTOpts) *JWTValidator {
+	return &JWTValidator{
+		jwksURL:   opts.JwksURL,
+		audiences: opts.Audiences,
+		mutex:     &sync.RWMutex{},
+		jwks:      nil,
+	}
+}
+
 // JWTMiddleware takes a JWTValidator and return a function.
 // The returned function takes in and returns a http.Handler.
 // The returned http.HandlerFunc is the actual middleware.
@@ -90,10 +98,6 @@ func JWTMiddleware(validator *JWTValidator) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-func (m *JWTValidator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
 }
 
 func parseX5c(x5c string) (*rsa.PublicKey, error) {
