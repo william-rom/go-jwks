@@ -11,20 +11,26 @@ import (
 )
 
 type JWKSFetcher struct {
-	wellKnowURL string
-	jwks        *JWKS
-	mutex       *sync.RWMutex
+	wellKnowURL   string
+	jwks          *JWKS
+	mutex         *sync.RWMutex
+	fetchInterval time.Duration
 }
 
 type JWKSFetcherOpts struct {
-	baseURL string
+	baseURL       string
+	fetchInterval time.Duration
 }
 
 func NewJWKSFetcher(opts JWKSFetcherOpts) *JWKSFetcher {
+	if opts.fetchInterval == 0 {
+		opts.fetchInterval = 24 * time.Hour
+	}
 	return &JWKSFetcher{
-		wellKnowURL: createDiscoveryURL(opts.baseURL),
-		mutex:       &sync.RWMutex{},
-		jwks:        nil,
+		wellKnowURL:   createDiscoveryURL(opts.baseURL),
+		mutex:         &sync.RWMutex{},
+		jwks:          nil,
+		fetchInterval: opts.fetchInterval,
 	}
 }
 
