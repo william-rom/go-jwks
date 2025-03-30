@@ -53,7 +53,7 @@ func (f *JWKSFetcher) Start(ctx context.Context) {
 	go func() {
 		slog.Info("performing intitial fetch")
 		if err := f.synchronizeKeys(ctx); err != nil {
-			slog.Error("initial JWKS fetch failed: %w", err)
+			slog.Error("initial JWKS fetch failed", "error", err)
 		}
 
 		ticker := time.NewTicker(24 * time.Hour)
@@ -110,7 +110,7 @@ func (f *JWKSFetcher) fetchRemoteJWKS(ctx context.Context, jwksURL string) (JWKS
 func (f *JWKSFetcher) synchronizeKeys(ctx context.Context) error {
 	slog.DebugContext(ctx, "Refreshing JWKS keys")
 
-	newJWKS, err := fetchRemoteJWKS(ctx, f.wellKnowURL)
+	newJWKS, err := f.fetchRemoteJWKS(ctx, f.wellKnowURL)
 	if err != nil {
 		return fmt.Errorf("failed to fetch remote keys: %w", err)
 	}
