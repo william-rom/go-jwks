@@ -52,7 +52,6 @@ func main() {
   // Start fetching JWKS
 	fetcher.Start(ctx)
 
-
 	// Configure JWT Validator
 	audiences := []string{
 		"api://YOUR_API_CLIENT_ID", 
@@ -97,7 +96,7 @@ To start validating JWTs, create a JWTValidator instance with the NewJWTValidato
 This object holds the in-memory store of JWKS from the fetcher, allowed audiences and valid singing methnods specified by the user.
 
 Passing this validator to the JWTMiddleware function returns a http.HandlerFunc middleware ready to authenticate incoming requests.
-The middleware expects a "Authorization: Bearer <token>" jwt header.
+The middleware expects a "Authorization: Bearer \<token>" jwt header.
 
 ## TODO
 Add support for EC (Elliptic Curve) key types (kty: "EC") and algorithms.
