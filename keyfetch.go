@@ -15,6 +15,7 @@ type JWKSFetcher struct {
 	jwks          *JWKS
 	mutex         *sync.RWMutex
 	fetchInterval time.Duration
+	httpClient    *http.Client
 }
 
 type JWKSFetcherOpts struct {
@@ -26,17 +27,34 @@ func NewJWKSFetcher(opts JWKSFetcherOpts) *JWKSFetcher {
 	if opts.fetchInterval == 0 {
 		opts.fetchInterval = 24 * time.Hour
 	}
+
+	//TODO: make opts customizable
+	httpClient := &http.Client{
+		Timeout: defaultTimeout,
+		Transport: &http.Transport{
+			MaxIdleConns:        httpClientMaxIdleCon,
+			IdleConnTimeout:     httpClientIdleConnTimeout,
+			DisableCompression:  true,
+			TLSHandshakeTimeout: httpClientTLSHandshakeTimeout,
+		},
+	}
+
 	return &JWKSFetcher{
 		wellKnowURL:   createDiscoveryURL(opts.baseURL),
 		mutex:         &sync.RWMutex{},
 		jwks:          nil,
 		fetchInterval: opts.fetchInterval,
+		httpClient:    httpClient,
 	}
 }
 
 // Start synchronization of JWKS into in-memory store.
 func (f *JWKSFetcher) Start(ctx context.Context) {
 	go func() {
+		slog.Info("performing intitial fetch")
+		if err := f.synchronizeKeys(ctx); err != nil {
+			slog.Error("initial JWKS fetch failed: %w", err)
+		}
 
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
@@ -58,7 +76,7 @@ func (f *JWKSFetcher) Start(ctx context.Context) {
 	}()
 }
 
-func fetchRemoteJWKS(ctx context.Context, jwksURL string) (JWKS, error) {
+func (f *JWKSFetcher) fetchRemoteJWKS(ctx context.Context, jwksURL string) (JWKS, error) {
 	slog.DebugContext(ctx, "Starting fetchRemoteJWKS")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, nil)
@@ -66,17 +84,7 @@ func fetchRemoteJWKS(ctx context.Context, jwksURL string) (JWKS, error) {
 		return JWKS{}, fmt.Errorf("crafting request to %s failed with %w", jwksURL, err)
 	}
 
-	httpClient := &http.Client{
-		Timeout: defaultTimeout,
-		Transport: &http.Transport{
-			MaxIdleConns:        httpClientMaxIdleCon,
-			IdleConnTimeout:     httpClientIdleConnTimeout,
-			DisableCompression:  true,
-			TLSHandshakeTimeout: httpClientTLSHandshakeTimeout,
-		},
-	}
-
-	resp, err := httpClient.Do(req)
+	resp, err := f.httpClient.Do(req)
 	if err != nil {
 		slog.DebugContext(ctx, "failed request", "url", jwksURL, "error", err)
 		return JWKS{}, fmt.Errorf("request to %s failed with %w", jwksURL, err)
