@@ -25,31 +25,6 @@ func generateRSAKey() (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
-// // generateSelfSignedCert creates a basic self-signed X.509 certificate
-// // containing the given public key. This is needed because the original
-// // `parseX5c` expects a certificate, not just a public key.
-// func generateSelfSignedCert(key *rsa.PrivateKey) ([]byte, error) {
-// 	template := x509.Certificate{
-// 		SerialNumber: big.NewInt(1),
-// 		Subject: pkix.Name{
-// 			Organization: []string{"Test Org"},
-// 		},
-// 		NotBefore: time.Now(),
-// 		NotAfter:  time.Now().Add(time.Hour * 24 * 365), // 1 year validity
-//
-// 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-// 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-// 		BasicConstraintsValid: true,
-// 	}
-//
-// 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to create certificate: %w", err)
-// 	}
-//
-// 	return derBytes, nil
-// }
-
 // generateTestJWT creates a JWT for testing.
 func generateTestJWT(signingKey *rsa.PrivateKey, kid, audience string, expiry time.Time, method jwtpkg.SigningMethod) (string, error) {
 	token := jwtpkg.New(method)
