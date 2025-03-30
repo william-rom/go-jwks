@@ -9,7 +9,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func mainf() {
+func main() {
 	ctx := context.Background()
 
 	// Configure jwks fetching opts.

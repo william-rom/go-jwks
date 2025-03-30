@@ -70,7 +70,7 @@ func generateTestJWT(signingKey *rsa.PrivateKey, kid, audience string, expiry ti
 
 // --- Test ---
 
-func TestJWTMiddleware_Simplified(t *testing.T) {
+func TestJWTMiddleware(t *testing.T) {
 	//  Generate Keys
 	signingKey, err := generateRSAKey()
 	assert.NoError(t, err, "Failed to generate signing key")
