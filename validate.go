@@ -1,7 +1,6 @@
 package jwt
 
 import (
-	"context"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
@@ -36,14 +35,16 @@ type JSONWebKeys struct {
 }
 
 type JWTValidator struct {
-	JWKSFetcher *JWKSFetcher
-	audiences   []string
+	JWKSFetcher  *JWKSFetcher
+	audiences    []string
+	validMethods []string
 }
 
-func NewJWTValidator(fetcher *JWKSFetcher, audiences []string) *JWTValidator {
+func NewJWTValidator(fetcher *JWKSFetcher, audiences []string, validMethods []string) *JWTValidator {
 	return &JWTValidator{
-		JWKSFetcher: fetcher,
-		audiences:   audiences,
+		JWKSFetcher:  fetcher,
+		audiences:    audiences,
+		validMethods: validMethods,
 	}
 }
 
@@ -53,7 +54,6 @@ func NewJWTValidator(fetcher *JWKSFetcher, audiences []string) *JWTValidator {
 func JWTMiddleware(validator *JWTValidator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := context.TODO()
 			authHeader := r.Header.Get("Authorization")
 
 			if authHeader == "" {
@@ -68,10 +68,10 @@ func JWTMiddleware(validator *JWTValidator) func(http.Handler) http.Handler {
 
 			tokenStr := parts[1]
 
-			keyFunc := validator.createKeyFunc(ctx)
+			keyFunc := validator.createKeyFunc()
 
 			// Parse and validate token.
-			token, err := jwt.Parse(tokenStr, keyFunc)
+			token, err := jwt.Parse(tokenStr, keyFunc, jwt.WithValidMethods(validator.validMethods))
 			if err != nil {
 				http.Error(w, "failed to parse jwt token", http.StatusUnauthorized)
 				slog.Error("failed to parse jwt token", "error", err)
@@ -111,13 +111,15 @@ func parseX5c(x5c string) (*rsa.PublicKey, error) {
 }
 
 // Returns a key lookup function function that takes in a jwt token,
+// A KeyFunc return (interface{}, error) where the interface may be a single key or a verificationKeySet with many keys.
+
 // extracts the kid, parses its corresponding x5c and returns it.
-func (m *JWTValidator) createKeyFunc(ctx context.Context) func(*jwt.Token) (interface{}, error) {
+func (m *JWTValidator) createKeyFunc() func(*jwt.Token) (interface{}, error) {
 	return func(token *jwt.Token) (interface{}, error) {
-		if method, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			slog.ErrorContext(ctx, "bad signing method", "method", method)
-			return nil, fmt.Errorf("bad singing method")
-		}
+		// if method, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+		// 	slog.ErrorContext(ctx, "bad signing method", "method", method)
+		// 	return nil, fmt.Errorf("bad singing method")
+		// }
 		kid, ok := token.Header["kid"].(string)
 		if !ok {
 			return nil, fmt.Errorf("no kid in claim")
@@ -136,7 +138,7 @@ func (m *JWTValidator) createKeyFunc(ctx context.Context) func(*jwt.Token) (inte
 					pubkey, err := parseX5c(x5c)
 					if err != nil {
 						parseErrs = append(parseErrs, err)
-						slog.Error("kid found but failed to parse x5c", "error", err)
+						slog.Error("kid found but failed to parse x5c", "kid", kid, "error", err)
 						continue
 					}
 					return pubkey, nil

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
-func main() {
+func mainf() {
 	ctx := context.Background()
 
 	// Configure jwks fetching opts.
@@ -25,8 +27,12 @@ func main() {
 		"api://8cfd806f-3d93-4c3e-87a1-db7002b142a1",
 	}
 
+	validMethods := []string{
+		jwt.SigningMethodRS256.Alg(),
+	}
+
 	// Create a JWT validator instance.
-	validator := NewJWTValidator(fetcher, audiences)
+	validator := NewJWTValidator(fetcher, audiences, validMethods)
 
 	// Create the http.Handler middleware.
 	jwtMiddleware := JWTMiddleware(validator)
