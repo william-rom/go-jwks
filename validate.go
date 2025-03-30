@@ -2,10 +2,10 @@ package jwt
 
 import (
 	"crypto/rsa"
-	"crypto/x509"
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"net/http"
 	"slices"
 	"strings"
@@ -26,12 +26,25 @@ const (
 )
 
 type JWKS struct {
-	Keys []JSONWebKeys `json:"keys"`
+	Keys []JSONWebKey `json:"keys"`
 }
+type JSONWebKey struct {
+	Kid string `json:"kid"`           // Key ID (required for lookup)
+	Kty string `json:"kty"`           // Key Type (e.g., "RSA", "EC") (Required)
+	Use string `json:"use,omitempty"` // Key Use (e.g., "sig", "enc") (Optional)
+	Alg string `json:"alg,omitempty"` // Algorithm (Optional)
 
-type JSONWebKeys struct {
-	Kid string   `json:"kid"`
-	X5c []string `json:"x5c"`
+	// RSA-specific parameters (Base64urlUInt encoding)
+	N string `json:"n,omitempty"` // Modulus
+	E string `json:"e,omitempty"` // Public Exponent
+
+	// EC-specific parameters (Base64url encoding for X/Y)
+	Crv string `json:"crv,omitempty"` // Curve (e.g., "P-256")
+	X   string `json:"x,omitempty"`   // X Coordinate
+	Y   string `json:"y,omitempty"`   // Y Coordinate
+
+	// X.509 Certificate Chain (Standard Base64 encoding)
+	X5c []string `json:"x5c,omitempty"` // Optional, can be used as fallback or primary source
 }
 
 type JWTValidator struct {
@@ -73,78 +86,108 @@ func JWTMiddleware(validator *JWTValidator) func(http.Handler) http.Handler {
 			// Parse and validate token.
 			token, err := jwt.Parse(tokenStr, keyFunc, jwt.WithValidMethods(validator.validMethods))
 			if err != nil {
-				http.Error(w, "failed to parse jwt token", http.StatusUnauthorized)
-				slog.Error("failed to parse jwt token", "error", err)
+				msg := "failed to parse jwt token"
+				http.Error(w, msg, http.StatusUnauthorized)
+				slog.Error(msg, "error", err)
 				return
 			}
 
 			if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-				if aud, ok := claims["aud"].(string); ok {
-					if !slices.Contains(validator.audiences, aud) {
-						http.Error(w, "invalid token", http.StatusUnauthorized)
-						return
+				validAud := false
+				// Check if aud exists
+				if audClaim, ok := claims["aud"]; ok {
+
+					// Single aud
+					if audStr, ok := claims["aud"].(string); ok {
+						if slices.Contains(validator.audiences, audStr) {
+							validAud = true
+						}
+						// multiple auds
+					} else if audSlice, ok := audClaim.([]interface{}); ok {
+						for _, audx := range audSlice {
+							if audStr, ok := audx.(string); ok {
+								if slices.Contains(validator.audiences, audStr) {
+									validAud = true
+									break
+								}
+							}
+						}
+
 					}
 				}
+				if !validAud {
+					slog.Error("token audience validation failed", "aud", claims["aud"])
+					http.Error(w, "invalid token", http.StatusUnauthorized)
+					return
+				}
+				next.ServeHTTP(w, r)
+			} else {
+				slog.Warn("token claims parsed but invalid", "claims", claims, "valid", token.Valid)
 			}
-			next.ServeHTTP(w, r)
 		})
 	}
 }
 
-func parseX5c(x5c string) (*rsa.PublicKey, error) {
-	decoded, err := base64.StdEncoding.DecodeString(x5c)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode public key: %w", err)
+// Parse JWK. Attempt both RSA and EC parsing. Return the public key.
+func parseKey(jwk *JSONWebKey) (interface{}, error) {
+	switch jwk.Kty {
+	case "RSA":
+		if jwk.N != "" && jwk.E != "" {
+			// Decode RSA param n
+			nBytes, err := base64.RawURLEncoding.DecodeString(jwk.N)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode RSA modulus 'n': %w", err)
+			}
+			n := new(big.Int).SetBytes(nBytes)
+			// Decode RSA param e
+			eBytes, err := base64.RawURLEncoding.DecodeString(jwk.E)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode RSA modulus 'e': %w", err)
+			}
+			// Might not need to be big?
+			e := new(big.Int).SetBytes(eBytes)
+			if n.BitLen() == 0 || e.BitLen() == 0 {
+				return nil, fmt.Errorf("big inting failed")
+			}
+			// TODO: clean up
+			return &rsa.PublicKey{N: n, E: int(e.Int64())}, nil
+		} else {
+			return nil, fmt.Errorf("missing N and/or E param")
+		}
+	//TODO: add EC support
+	case "EC":
+		return nil, fmt.Errorf("EC not yet supported")
+	default:
+		return nil, fmt.Errorf("method not supported: %s", jwk.Kty)
 	}
-
-	cert, err := x509.ParseCertificate(decoded)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse certificate: %w", err)
-	}
-
-	rsaPublicKey, ok := cert.PublicKey.(*rsa.PublicKey)
-	if !ok {
-		return nil, fmt.Errorf("failed to extract public key")
-	}
-
-	return rsaPublicKey, nil
 }
 
 // Returns a key lookup function function that takes in a jwt token,
 // A KeyFunc return (interface{}, error) where the interface may be a single key or a verificationKeySet with many keys.
-
-// extracts the kid, parses its corresponding x5c and returns it.
-func (m *JWTValidator) createKeyFunc() func(*jwt.Token) (interface{}, error) {
+func (v *JWTValidator) createKeyFunc() func(*jwt.Token) (interface{}, error) {
 	return func(token *jwt.Token) (interface{}, error) {
-		// if method, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-		// 	slog.ErrorContext(ctx, "bad signing method", "method", method)
-		// 	return nil, fmt.Errorf("bad singing method")
-		// }
 		kid, ok := token.Header["kid"].(string)
 		if !ok {
 			return nil, fmt.Errorf("no kid in claim")
 		}
 
 		// Lock and read from jwks store.
-		m.JWKSFetcher.mutex.RLock()
-		defer m.JWKSFetcher.mutex.RUnlock()
+		v.JWKSFetcher.mutex.RLock()
+		defer v.JWKSFetcher.mutex.RUnlock()
 
 		// Check if any of the public keys IDs match the auth header kid.
 		// If match, parse and return RSA public key.
-		for _, key := range m.JWKSFetcher.jwks.Keys {
+		for _, key := range v.JWKSFetcher.jwks.Keys {
 			if key.Kid == kid {
-				var parseErrs []error
-				for _, x5c := range key.X5c {
-					pubkey, err := parseX5c(x5c)
-					if err != nil {
-						parseErrs = append(parseErrs, err)
-						slog.Error("kid found but failed to parse x5c", "kid", kid, "error", err)
-						continue
-					}
-					return pubkey, nil
+				pubkey, err := parseKey(&key)
+				if err != nil {
+					slog.Error("failed to parse public key from JWK", "error", err)
+					return nil, fmt.Errorf("failed to parse key for kid %s: %w", kid, err)
 				}
-
-				return nil, fmt.Errorf("failed to parse any x5c: %s", parseErrs)
+				if pubkey == nil {
+					return nil, fmt.Errorf("key found for kid %s, but parsing resulted in nil key", key)
+				}
+				return pubkey, nil
 			}
 		}
 		return nil, fmt.Errorf("signing key not found")

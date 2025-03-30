@@ -3,8 +3,6 @@ package jwt
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/base64"
 	"fmt"
 	"math/big"
@@ -27,29 +25,30 @@ func generateRSAKey() (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
-// generateSelfSignedCert creates a basic self-signed X.509 certificate
-// containing the given public key. This is needed because the original
-// `parseX5c` expects a certificate, not just a public key.
-func generateSelfSignedCert(key *rsa.PrivateKey) ([]byte, error) {
-	template := x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject: pkix.Name{
-			Organization: []string{"Test Org"},
-		},
-		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(time.Hour * 24 * 365), // 1 year validity
-
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-	}
-
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create certificate: %w", err)
-	}
-	return derBytes, nil
-}
+// // generateSelfSignedCert creates a basic self-signed X.509 certificate
+// // containing the given public key. This is needed because the original
+// // `parseX5c` expects a certificate, not just a public key.
+// func generateSelfSignedCert(key *rsa.PrivateKey) ([]byte, error) {
+// 	template := x509.Certificate{
+// 		SerialNumber: big.NewInt(1),
+// 		Subject: pkix.Name{
+// 			Organization: []string{"Test Org"},
+// 		},
+// 		NotBefore: time.Now(),
+// 		NotAfter:  time.Now().Add(time.Hour * 24 * 365), // 1 year validity
+//
+// 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+// 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+// 		BasicConstraintsValid: true,
+// 	}
+//
+// 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to create certificate: %w", err)
+// 	}
+//
+// 	return derBytes, nil
+// }
 
 // generateTestJWT creates a JWT for testing.
 func generateTestJWT(signingKey *rsa.PrivateKey, kid, audience string, expiry time.Time, method jwtpkg.SigningMethod) (string, error) {
@@ -78,18 +77,25 @@ func TestJWTMiddleware(t *testing.T) {
 	invalidSigningKey, err := generateRSAKey()
 	assert.NoError(t, err, "Failed to generate invalid signing key")
 
-	// Create Self-Signed Certificate for JWKS x5c
-	certBytes, err := generateSelfSignedCert(signingKey)
-	assert.NoError(t, err, "Failed to generate self-signed cert")
-	certX5C := base64.StdEncoding.EncodeToString(certBytes)
-
 	// Setup Static JWKS
 	kid := "test-kid-12345"
+	nBytes := signingKey.PublicKey.N.Bytes()
+	nBase64URL := base64.RawURLEncoding.EncodeToString(nBytes)
+
+	eInt := signingKey.PublicKey.E
+	eBigInt := big.NewInt(int64(eInt))
+	eBytes := eBigInt.Bytes()
+	eBase64URL := base64.RawURLEncoding.EncodeToString(eBytes)
+
 	staticJWKS := &JWKS{
-		Keys: []JSONWebKeys{
+		Keys: []JSONWebKey{
 			{
 				Kid: kid,
-				X5c: []string{certX5C}, // Use the base64 encoded certificate DER
+				Kty: "RSA",
+				// X5c: []string{certX5C}, // Use the base64 encoded certificate DER
+				E: eBase64URL,
+				//N: "iQ745_U-vjkxPblaw6phBpe08fC42mpcrS4pcr15HiyZQyQV-BFcEVyLwPdsz3ulMRN7OB_UMfCcPBHqOjguejoab6hyJFVVMw_epP4a3SpQN9qaCbnqaSxgSGiqSq663g3TjsF_Wu1m9L41eNoF6Yvh5kULMd6lqjY0LPO5ZZxaQFLtIHahoJKMvYy1BTS0VYcNsXTjxkgUEL6Vc8GV5vaClbnY3VA2hLbXC1SGJWjVGdYXhkuck2tHr58u87MPEaQ33C6YfyISZKsdumF5bTCcIH75jjC3WbMVOLgWg5w0MSiHOFyI76Ihxbb0nRicEuao0WzO9AS7HJ7L24FHFQ",
+				N: nBase64URL,
 			},
 		},
 	}
