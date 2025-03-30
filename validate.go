@@ -96,7 +96,6 @@ func JWTMiddleware(validator *JWTValidator) func(http.Handler) http.Handler {
 				validAud := false
 				// Check if aud exists
 				if audClaim, ok := claims["aud"]; ok {
-
 					// Single aud
 					if audStr, ok := claims["aud"].(string); ok {
 						if slices.Contains(validator.audiences, audStr) {
@@ -112,7 +111,6 @@ func JWTMiddleware(validator *JWTValidator) func(http.Handler) http.Handler {
 								}
 							}
 						}
-
 					}
 				}
 				if !validAud {
@@ -154,7 +152,7 @@ func parseKey(jwk *JSONWebKey) (interface{}, error) {
 		} else {
 			return nil, fmt.Errorf("missing N and/or E param")
 		}
-	//TODO: add EC support
+	// TODO: add EC support
 	case "EC":
 		return nil, fmt.Errorf("EC not yet supported")
 	default:

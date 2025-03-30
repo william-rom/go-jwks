@@ -54,10 +54,10 @@ func TestJWTMiddleware(t *testing.T) {
 
 	// Setup Static JWKS
 	kid := "test-kid-12345"
-	nBytes := signingKey.PublicKey.N.Bytes()
+	nBytes := signingKey.N.Bytes()
 	nBase64URL := base64.RawURLEncoding.EncodeToString(nBytes)
 
-	eInt := signingKey.PublicKey.E
+	eInt := signingKey.E
 	eBigInt := big.NewInt(int64(eInt))
 	eBytes := eBigInt.Bytes()
 	eBase64URL := base64.RawURLEncoding.EncodeToString(eBytes)
@@ -69,7 +69,7 @@ func TestJWTMiddleware(t *testing.T) {
 				Kty: "RSA",
 				// X5c: []string{certX5C}, // Use the base64 encoded certificate DER
 				E: eBase64URL,
-				//N: "iQ745_U-vjkxPblaw6phBpe08fC42mpcrS4pcr15HiyZQyQV-BFcEVyLwPdsz3ulMRN7OB_UMfCcPBHqOjguejoab6hyJFVVMw_epP4a3SpQN9qaCbnqaSxgSGiqSq663g3TjsF_Wu1m9L41eNoF6Yvh5kULMd6lqjY0LPO5ZZxaQFLtIHahoJKMvYy1BTS0VYcNsXTjxkgUEL6Vc8GV5vaClbnY3VA2hLbXC1SGJWjVGdYXhkuck2tHr58u87MPEaQ33C6YfyISZKsdumF5bTCcIH75jjC3WbMVOLgWg5w0MSiHOFyI76Ihxbb0nRicEuao0WzO9AS7HJ7L24FHFQ",
+				// N: "iQ745_U-vjkxPblaw6phBpe08fC42mpcrS4pcr15HiyZQyQV-BFcEVyLwPdsz3ulMRN7OB_UMfCcPBHqOjguejoab6hyJFVVMw_epP4a3SpQN9qaCbnqaSxgSGiqSq663g3TjsF_Wu1m9L41eNoF6Yvh5kULMd6lqjY0LPO5ZZxaQFLtIHahoJKMvYy1BTS0VYcNsXTjxkgUEL6Vc8GV5vaClbnY3VA2hLbXC1SGJWjVGdYXhkuck2tHr58u87MPEaQ33C6YfyISZKsdumF5bTCcIH75jjC3WbMVOLgWg5w0MSiHOFyI76Ihxbb0nRicEuao0WzO9AS7HJ7L24FHFQ",
 				N: nBase64URL,
 			},
 		},

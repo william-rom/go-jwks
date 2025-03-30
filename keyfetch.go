@@ -28,7 +28,7 @@ func NewJWKSFetcher(opts JWKSFetcherOpts) *JWKSFetcher {
 		opts.fetchInterval = 24 * time.Hour
 	}
 
-	//TODO: make opts customizable
+	// TODO: make opts customizable
 	httpClient := &http.Client{
 		Timeout: defaultTimeout,
 		Transport: &http.Transport{
