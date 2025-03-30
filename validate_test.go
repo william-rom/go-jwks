@@ -155,8 +155,6 @@ func TestJWTMiddleware(t *testing.T) {
 
 		testHandler.ServeHTTP(recorder, req)
 
-		// Note: Your current logic checks audience *after* successful parsing.
-		// If parsing succeeds but audience fails, you return "invalid token".
 		assert.Equal(t, http.StatusUnauthorized, recorder.Code, "Expected status Unauthorized for wrong audience")
 		assert.Contains(t, recorder.Body.String(), "invalid token", "Expected invalid token message for wrong audience")
 	})
